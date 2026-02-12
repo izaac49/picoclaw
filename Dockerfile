@@ -19,4 +19,4 @@ RUN go build -tags netgo -ldflags "-s -w" -o app ./cmd/picoclaw
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/app .
-CMD ["./app"]
+CMD ["./app", "gateway"]
