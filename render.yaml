@@ -4,4 +4,10 @@ services:
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
-startCommand: ./app gateway
+    envVars:
+      - key: OPENROUTER_API_KEY
+        value: your_openrouter_api_key_here
+      - key: TELEGRAM_BOT_TOKEN
+        value: your_telegram_bot_token_here
+      - key: TELEGRAM_CHAT_ID
+        value: your_chat_id_here

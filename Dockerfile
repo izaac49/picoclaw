@@ -18,5 +18,14 @@ RUN go build -tags netgo -ldflags "-s -w" -o app ./cmd/picoclaw
 # Final stage: minimal runtime image
 FROM debian:bookworm-slim
 WORKDIR /app
+
+# Install ca-certificates for HTTPS requests
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/app .
-CMD ["./app", "gateway"]
+COPY --from=builder /app/config.json /app/config.json
+
+# Use standard gateway port
+EXPOSE 18790
+
+CMD ["./app", "gateway", "--config", "/app/config.json"]

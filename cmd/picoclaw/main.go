@@ -20,7 +20,6 @@ import (
 
 	"github.com/chzyer/readline"
 	"github.com/sipeed/picoclaw/pkg/agent"
-	"github.com/sipeed/picoclaw/pkg/auth"
 	"github.com/sipeed/picoclaw/pkg/bus"
 	"github.com/sipeed/picoclaw/pkg/channels"
 	"github.com/sipeed/picoclaw/pkg/config"
@@ -31,7 +30,6 @@ import (
 	"github.com/sipeed/picoclaw/pkg/providers"
 	"github.com/sipeed/picoclaw/pkg/skills"
 	"github.com/sipeed/picoclaw/pkg/tools"
-	"github.com/sipeed/picoclaw/pkg/voice"
 )
 
 var (
@@ -109,8 +107,6 @@ func main() {
 		statusCmd()
 	case "migrate":
 		migrateCmd()
-	case "auth":
-		authCmd()
 	case "cron":
 		cronCmd()
 	case "skills":
@@ -129,8 +125,7 @@ func main() {
 
 		workspace := cfg.WorkspacePath()
 		installer := skills.NewSkillInstaller(workspace)
-		// 获取全局配置目录和内置 skills 目录
-		globalDir := filepath.Dir(getConfigPath())
+		globalDir := filepath.Dir(filepath.Dir(getConfigPath())) // Adjusted for typical /app/config.json
 		globalSkillsDir := filepath.Join(globalDir, "skills")
 		builtinSkillsDir := filepath.Join(globalDir, "picoclaw", "skills")
 		skillsLoader := skills.NewSkillsLoader(workspace, globalSkillsDir, builtinSkillsDir)
@@ -178,7 +173,6 @@ func printHelp() {
 	fmt.Println("Commands:")
 	fmt.Println("  onboard     Initialize picoclaw configuration and workspace")
 	fmt.Println("  agent       Interact with the agent directly")
-	fmt.Println("  auth        Manage authentication (login, logout, status)")
 	fmt.Println("  gateway     Start picoclaw gateway")
 	fmt.Println("  status      Show picoclaw status")
 	fmt.Println("  cron        Manage scheduled tasks")
@@ -216,7 +210,7 @@ func onboard() {
 
 	fmt.Printf("%s picoclaw is ready!\n", logo)
 	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Add your API key to", configPath)
+	fmt.Println("  1. Add your OpenRouter API key to", configPath)
 	fmt.Println("     Get one at: https://openrouter.ai/keys")
 	fmt.Println("  2. Chat: picoclaw agent -m \"Hello!\"")
 }
@@ -238,7 +232,7 @@ You are a helpful AI assistant. Be concise, accurate, and friendly.
 `,
 		"SOUL.md": `# Soul
 
-I am picoclaw, a lightweight AI assistant powered by AI.
+I am picoclaw, a lightweight AI assistant powered by OpenRouter.
 
 ## Personality
 
@@ -282,23 +276,23 @@ Information about user goes here.
 PicoClaw 🦞
 
 ## Description
-Ultra-lightweight personal AI assistant written in Go, inspired by nanobot.
+Ultra-lightweight personal AI assistant written in Go, powered exclusively by OpenRouter.
 
 ## Version
 0.1.0
 
 ## Purpose
 - Provide intelligent AI assistance with minimal resource usage
-- Support multiple LLM providers (OpenAI, Anthropic, Zhipu, etc.)
+- Use OpenRouter for high-quality LLM access
 - Enable easy customization through skills system
-- Run on minimal hardware ($10 boards, <10MB RAM)
+- Run efficiently on Render Free Tier
 
 ## Capabilities
 
 - Web search and content fetching
 - File system operations (read, write, edit)
 - Shell command execution
-- Multi-channel messaging (Telegram, WhatsApp, Feishu)
+- Multi-channel messaging (Telegram, etc.)
 - Skill-based extensibility
 - Memory and context management
 
@@ -313,20 +307,14 @@ Ultra-lightweight personal AI assistant written in Go, inspired by nanobot.
 ## Goals
 
 - Provide a fast, lightweight AI assistant
-- Support offline-first operation where possible
 - Enable easy customization and extension
 - Maintain high quality responses
-- Run efficiently on constrained hardware
 
 ## License
 MIT License - Free and open source
 
 ## Repository
 https://github.com/sipeed/picoclaw
-
-## Contact
-Issues: https://github.com/sipeed/picoclaw/issues
-Discussions: https://github.com/sipeed/picoclaw/discussions
 
 ---
 
@@ -376,14 +364,6 @@ This file stores important information that should persist across sessions.
 		if _, err := os.Stat(skillsDir); os.IsNotExist(err) {
 			os.MkdirAll(skillsDir, 0755)
 			fmt.Println("  Created skills/")
-		}
-	}
-
-	for filename, content := range templates {
-		filePath := filepath.Join(workspace, filename)
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			os.WriteFile(filePath, []byte(content), 0644)
-			fmt.Printf("  Created %s\n", filename)
 		}
 	}
 }
@@ -496,7 +476,6 @@ func agentCmd() {
 	msgBus := bus.NewMessageBus()
 	agentLoop := agent.NewAgentLoop(cfg, msgBus, provider)
 
-	// Print agent startup info (only for interactive mode)
 	startupInfo := agentLoop.GetStartupInfo()
 	logger.InfoCF("agent", "Agent initialized",
 		map[string]interface{}{
@@ -606,7 +585,6 @@ func simpleInteractiveMode(agentLoop *agent.AgentLoop, sessionKey string) {
 }
 
 func gatewayCmd() {
-	// Check for --debug flag
 	args := os.Args[2:]
 	for _, arg := range args {
 		if arg == "--debug" || arg == "-d" {
@@ -631,7 +609,6 @@ func gatewayCmd() {
 	msgBus := bus.NewMessageBus()
 	agentLoop := agent.NewAgentLoop(cfg, msgBus, provider)
 
-	// Print agent startup info
 	fmt.Println("\n📦 Agent Status:")
 	startupInfo := agentLoop.GetStartupInfo()
 	toolsInfo := startupInfo["tools"].(map[string]interface{})
@@ -641,7 +618,6 @@ func gatewayCmd() {
 		skillsInfo["available"],
 		skillsInfo["total"])
 
-	// Log to file as well
 	logger.InfoCF("agent", "Agent initialized",
 		map[string]interface{}{
 			"tools_count":      toolsInfo["count"],
@@ -649,7 +625,6 @@ func gatewayCmd() {
 			"skills_available": skillsInfo["available"],
 		})
 
-	// Setup cron tool and service
 	cronService := setupCronTool(agentLoop, msgBus, cfg.WorkspacePath())
 
 	heartbeatService := heartbeat.NewHeartbeatService(
@@ -663,33 +638,6 @@ func gatewayCmd() {
 	if err != nil {
 		fmt.Printf("Error creating channel manager: %v\n", err)
 		os.Exit(1)
-	}
-
-	var transcriber *voice.GroqTranscriber
-	if cfg.Providers.Groq.APIKey != "" {
-		transcriber = voice.NewGroqTranscriber(cfg.Providers.Groq.APIKey)
-		logger.InfoC("voice", "Groq voice transcription enabled")
-	}
-
-	if transcriber != nil {
-		if telegramChannel, ok := channelManager.GetChannel("telegram"); ok {
-			if tc, ok := telegramChannel.(*channels.TelegramChannel); ok {
-				tc.SetTranscriber(transcriber)
-				logger.InfoC("voice", "Groq transcription attached to Telegram channel")
-			}
-		}
-		if discordChannel, ok := channelManager.GetChannel("discord"); ok {
-			if dc, ok := discordChannel.(*channels.DiscordChannel); ok {
-				dc.SetTranscriber(transcriber)
-				logger.InfoC("voice", "Groq transcription attached to Discord channel")
-			}
-		}
-		if slackChannel, ok := channelManager.GetChannel("slack"); ok {
-			if sc, ok := slackChannel.(*channels.SlackChannel); ok {
-				sc.SetTranscriber(transcriber)
-				logger.InfoC("voice", "Groq transcription attached to Slack channel")
-			}
-		}
 	}
 
 	enabledChannels := channelManager.GetEnabledChannels()
@@ -762,12 +710,6 @@ func statusCmd() {
 		fmt.Printf("Model: %s\n", cfg.Agents.Defaults.Model)
 
 		hasOpenRouter := cfg.Providers.OpenRouter.APIKey != ""
-		hasAnthropic := cfg.Providers.Anthropic.APIKey != ""
-		hasOpenAI := cfg.Providers.OpenAI.APIKey != ""
-		hasGemini := cfg.Providers.Gemini.APIKey != ""
-		hasZhipu := cfg.Providers.Zhipu.APIKey != ""
-		hasGroq := cfg.Providers.Groq.APIKey != ""
-		hasVLLM := cfg.Providers.VLLM.APIBase != ""
 
 		status := func(enabled bool) string {
 			if enabled {
@@ -776,273 +718,29 @@ func statusCmd() {
 			return "not set"
 		}
 		fmt.Println("OpenRouter API:", status(hasOpenRouter))
-		fmt.Println("Anthropic API:", status(hasAnthropic))
-		fmt.Println("OpenAI API:", status(hasOpenAI))
-		fmt.Println("Gemini API:", status(hasGemini))
-		fmt.Println("Zhipu API:", status(hasZhipu))
-		fmt.Println("Groq API:", status(hasGroq))
-		if hasVLLM {
-			fmt.Printf("vLLM/Local: ✓ %s\n", cfg.Providers.VLLM.APIBase)
-		} else {
-			fmt.Println("vLLM/Local: not set")
-		}
-
-		store, _ := auth.LoadStore()
-		if store != nil && len(store.Credentials) > 0 {
-			fmt.Println("\nOAuth/Token Auth:")
-			for provider, cred := range store.Credentials {
-				status := "authenticated"
-				if cred.IsExpired() {
-					status = "expired"
-				} else if cred.NeedsRefresh() {
-					status = "needs refresh"
-				}
-				fmt.Printf("  %s (%s): %s\n", provider, cred.AuthMethod, status)
-			}
-		}
-	}
-}
-
-func authCmd() {
-	if len(os.Args) < 3 {
-		authHelp()
-		return
-	}
-
-	switch os.Args[2] {
-	case "login":
-		authLoginCmd()
-	case "logout":
-		authLogoutCmd()
-	case "status":
-		authStatusCmd()
-	default:
-		fmt.Printf("Unknown auth command: %s\n", os.Args[2])
-		authHelp()
-	}
-}
-
-func authHelp() {
-	fmt.Println("\nAuth commands:")
-	fmt.Println("  login       Login via OAuth or paste token")
-	fmt.Println("  logout      Remove stored credentials")
-	fmt.Println("  status      Show current auth status")
-	fmt.Println()
-	fmt.Println("Login options:")
-	fmt.Println("  --provider <name>    Provider to login with (openai, anthropic)")
-	fmt.Println("  --device-code        Use device code flow (for headless environments)")
-	fmt.Println()
-	fmt.Println("Examples:")
-	fmt.Println("  picoclaw auth login --provider openai")
-	fmt.Println("  picoclaw auth login --provider openai --device-code")
-	fmt.Println("  picoclaw auth login --provider anthropic")
-	fmt.Println("  picoclaw auth logout --provider openai")
-	fmt.Println("  picoclaw auth status")
-}
-
-func authLoginCmd() {
-	provider := ""
-	useDeviceCode := false
-
-	args := os.Args[3:]
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--provider", "-p":
-			if i+1 < len(args) {
-				provider = args[i+1]
-				i++
-			}
-		case "--device-code":
-			useDeviceCode = true
-		}
-	}
-
-	if provider == "" {
-		fmt.Println("Error: --provider is required")
-		fmt.Println("Supported providers: openai, anthropic")
-		return
-	}
-
-	switch provider {
-	case "openai":
-		authLoginOpenAI(useDeviceCode)
-	case "anthropic":
-		authLoginPasteToken(provider)
-	default:
-		fmt.Printf("Unsupported provider: %s\n", provider)
-		fmt.Println("Supported providers: openai, anthropic")
-	}
-}
-
-func authLoginOpenAI(useDeviceCode bool) {
-	cfg := auth.OpenAIOAuthConfig()
-
-	var cred *auth.AuthCredential
-	var err error
-
-	if useDeviceCode {
-		cred, err = auth.LoginDeviceCode(cfg)
-	} else {
-		cred, err = auth.LoginBrowser(cfg)
-	}
-
-	if err != nil {
-		fmt.Printf("Login failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := auth.SetCredential("openai", cred); err != nil {
-		fmt.Printf("Failed to save credentials: %v\n", err)
-		os.Exit(1)
-	}
-
-	appCfg, err := loadConfig()
-	if err == nil {
-		appCfg.Providers.OpenAI.AuthMethod = "oauth"
-		if err := config.SaveConfig(getConfigPath(), appCfg); err != nil {
-			fmt.Printf("Warning: could not update config: %v\n", err)
-		}
-	}
-
-	fmt.Println("Login successful!")
-	if cred.AccountID != "" {
-		fmt.Printf("Account: %s\n", cred.AccountID)
-	}
-}
-
-func authLoginPasteToken(provider string) {
-	cred, err := auth.LoginPasteToken(provider, os.Stdin)
-	if err != nil {
-		fmt.Printf("Login failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := auth.SetCredential(provider, cred); err != nil {
-		fmt.Printf("Failed to save credentials: %v\n", err)
-		os.Exit(1)
-	}
-
-	appCfg, err := loadConfig()
-	if err == nil {
-		switch provider {
-		case "anthropic":
-			appCfg.Providers.Anthropic.AuthMethod = "token"
-		case "openai":
-			appCfg.Providers.OpenAI.AuthMethod = "token"
-		}
-		if err := config.SaveConfig(getConfigPath(), appCfg); err != nil {
-			fmt.Printf("Warning: could not update config: %v\n", err)
-		}
-	}
-
-	fmt.Printf("Token saved for %s!\n", provider)
-}
-
-func authLogoutCmd() {
-	provider := ""
-
-	args := os.Args[3:]
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--provider", "-p":
-			if i+1 < len(args) {
-				provider = args[i+1]
-				i++
-			}
-		}
-	}
-
-	if provider != "" {
-		if err := auth.DeleteCredential(provider); err != nil {
-			fmt.Printf("Failed to remove credentials: %v\n", err)
-			os.Exit(1)
-		}
-
-		appCfg, err := loadConfig()
-		if err == nil {
-			switch provider {
-			case "openai":
-				appCfg.Providers.OpenAI.AuthMethod = ""
-			case "anthropic":
-				appCfg.Providers.Anthropic.AuthMethod = ""
-			}
-			config.SaveConfig(getConfigPath(), appCfg)
-		}
-
-		fmt.Printf("Logged out from %s\n", provider)
-	} else {
-		if err := auth.DeleteAllCredentials(); err != nil {
-			fmt.Printf("Failed to remove credentials: %v\n", err)
-			os.Exit(1)
-		}
-
-		appCfg, err := loadConfig()
-		if err == nil {
-			appCfg.Providers.OpenAI.AuthMethod = ""
-			appCfg.Providers.Anthropic.AuthMethod = ""
-			config.SaveConfig(getConfigPath(), appCfg)
-		}
-
-		fmt.Println("Logged out from all providers")
-	}
-}
-
-func authStatusCmd() {
-	store, err := auth.LoadStore()
-	if err != nil {
-		fmt.Printf("Error loading auth store: %v\n", err)
-		return
-	}
-
-	if len(store.Credentials) == 0 {
-		fmt.Println("No authenticated providers.")
-		fmt.Println("Run: picoclaw auth login --provider <name>")
-		return
-	}
-
-	fmt.Println("\nAuthenticated Providers:")
-	fmt.Println("------------------------")
-	for provider, cred := range store.Credentials {
-		status := "active"
-		if cred.IsExpired() {
-			status = "expired"
-		} else if cred.NeedsRefresh() {
-			status = "needs refresh"
-		}
-
-		fmt.Printf("  %s:\n", provider)
-		fmt.Printf("    Method: %s\n", cred.AuthMethod)
-		fmt.Printf("    Status: %s\n", status)
-		if cred.AccountID != "" {
-			fmt.Printf("    Account: %s\n", cred.AccountID)
-		}
-		if !cred.ExpiresAt.IsZero() {
-			fmt.Printf("    Expires: %s\n", cred.ExpiresAt.Format("2006-01-02 15:04"))
-		}
 	}
 }
 
 func getConfigPath() string {
+	// Support --config flag
+	for i, arg := range os.Args {
+		if (arg == "--config" || arg == "-c") && i+1 < len(os.Args) {
+			return os.Args[i+1]
+		}
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".picoclaw", "config.json")
 }
 
 func setupCronTool(agentLoop *agent.AgentLoop, msgBus *bus.MessageBus, workspace string) *cron.CronService {
 	cronStorePath := filepath.Join(workspace, "cron", "jobs.json")
-
-	// Create cron service
 	cronService := cron.NewCronService(cronStorePath, nil)
-
-	// Create and register CronTool
 	cronTool := tools.NewCronTool(cronService, agentLoop, msgBus)
 	agentLoop.RegisterTool(cronTool)
-
-	// Set the onJob handler
 	cronService.SetOnJob(func(job *cron.CronJob) (string, error) {
 		result := cronTool.ExecuteJob(context.Background(), job)
 		return result, nil
 	})
-
 	return cronService
 }
 
@@ -1055,18 +753,13 @@ func cronCmd() {
 		cronHelp()
 		return
 	}
-
 	subcommand := os.Args[2]
-
-	// Load config to get workspace path
 	cfg, err := loadConfig()
 	if err != nil {
 		fmt.Printf("Error loading config: %v\n", err)
 		return
 	}
-
 	cronStorePath := filepath.Join(cfg.WorkspacePath(), "cron", "jobs.json")
-
 	switch subcommand {
 	case "list":
 		cronListCmd(cronStorePath)
@@ -1108,13 +801,11 @@ func cronHelp() {
 
 func cronListCmd(storePath string) {
 	cs := cron.NewCronService(storePath, nil)
-	jobs := cs.ListJobs(true) // Show all jobs, including disabled
-
+	jobs := cs.ListJobs(true)
 	if len(jobs) == 0 {
 		fmt.Println("No scheduled jobs.")
 		return
 	}
-
 	fmt.Println("\nScheduled Jobs:")
 	fmt.Println("----------------")
 	for _, job := range jobs {
@@ -1126,18 +817,15 @@ func cronListCmd(storePath string) {
 		} else {
 			schedule = "one-time"
 		}
-
 		nextRun := "scheduled"
 		if job.State.NextRunAtMS != nil {
 			nextTime := time.UnixMilli(*job.State.NextRunAtMS)
 			nextRun = nextTime.Format("2006-01-02 15:04")
 		}
-
 		status := "enabled"
 		if !job.Enabled {
 			status = "disabled"
 		}
-
 		fmt.Printf("  %s (%s)\n", job.Name, job.ID)
 		fmt.Printf("    Schedule: %s\n", schedule)
 		fmt.Printf("    Status: %s\n", status)
@@ -1153,7 +841,6 @@ func cronAddCmd(storePath string) {
 	deliver := false
 	channel := ""
 	to := ""
-
 	args := os.Args[3:]
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -1193,22 +880,18 @@ func cronAddCmd(storePath string) {
 			}
 		}
 	}
-
 	if name == "" {
 		fmt.Println("Error: --name is required")
 		return
 	}
-
 	if message == "" {
 		fmt.Println("Error: --message is required")
 		return
 	}
-
 	if everySec == nil && cronExpr == "" {
 		fmt.Println("Error: Either --every or --cron must be specified")
 		return
 	}
-
 	var schedule cron.CronSchedule
 	if everySec != nil {
 		everyMS := *everySec * 1000
@@ -1222,14 +905,12 @@ func cronAddCmd(storePath string) {
 			Expr: cronExpr,
 		}
 	}
-
 	cs := cron.NewCronService(storePath, nil)
 	job, err := cs.AddJob(name, schedule, message, deliver, channel, to)
 	if err != nil {
 		fmt.Printf("Error adding job: %v\n", err)
 		return
 	}
-
 	fmt.Printf("✓ Added job '%s' (%s)\n", job.Name, job.ID)
 }
 
@@ -1247,11 +928,9 @@ func cronEnableCmd(storePath string, disable bool) {
 		fmt.Println("Usage: picoclaw cron enable/disable <job_id>")
 		return
 	}
-
 	jobID := os.Args[3]
 	cs := cron.NewCronService(storePath, nil)
 	enabled := !disable
-
 	job := cs.EnableJob(jobID, enabled)
 	if job != nil {
 		status := "enabled"
@@ -1269,23 +948,18 @@ func skillsCmd() {
 		skillsHelp()
 		return
 	}
-
 	subcommand := os.Args[2]
-
 	cfg, err := loadConfig()
 	if err != nil {
 		fmt.Printf("Error loading config: %v\n", err)
 		os.Exit(1)
 	}
-
 	workspace := cfg.WorkspacePath()
 	installer := skills.NewSkillInstaller(workspace)
-	// 获取全局配置目录和内置 skills 目录
-	globalDir := filepath.Dir(getConfigPath())
+	globalDir := filepath.Dir(filepath.Dir(getConfigPath()))
 	globalSkillsDir := filepath.Join(globalDir, "skills")
 	builtinSkillsDir := filepath.Join(globalDir, "picoclaw", "skills")
 	skillsLoader := skills.NewSkillsLoader(workspace, globalSkillsDir, builtinSkillsDir)
-
 	switch subcommand {
 	case "list":
 		skillsListCmd(skillsLoader)
@@ -1331,12 +1005,10 @@ func skillsHelp() {
 
 func skillsListCmd(loader *skills.SkillsLoader) {
 	allSkills := loader.ListSkills()
-
 	if len(allSkills) == 0 {
 		fmt.Println("No skills installed.")
 		return
 	}
-
 	fmt.Println("\nInstalled Skills:")
 	fmt.Println("------------------")
 	for _, skill := range allSkills {
@@ -1350,153 +1022,67 @@ func skillsListCmd(loader *skills.SkillsLoader) {
 func skillsInstallCmd(installer *skills.SkillInstaller) {
 	if len(os.Args) < 4 {
 		fmt.Println("Usage: picoclaw skills install <github-repo>")
-		fmt.Println("Example: picoclaw skills install sipeed/picoclaw-skills/weather")
 		return
 	}
-
 	repo := os.Args[3]
 	fmt.Printf("Installing skill from %s...\n", repo)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	if err := installer.InstallFromGitHub(ctx, repo); err != nil {
 		fmt.Printf("✗ Failed to install skill: %v\n", err)
 		os.Exit(1)
 	}
-
 	fmt.Printf("✓ Skill '%s' installed successfully!\n", filepath.Base(repo))
 }
 
 func skillsRemoveCmd(installer *skills.SkillInstaller, skillName string) {
 	fmt.Printf("Removing skill '%s'...\n", skillName)
-
 	if err := installer.Uninstall(skillName); err != nil {
 		fmt.Printf("✗ Failed to remove skill: %v\n", err)
 		os.Exit(1)
 	}
-
 	fmt.Printf("✓ Skill '%s' removed successfully!\n", skillName)
 }
 
 func skillsInstallBuiltinCmd(workspace string) {
 	builtinSkillsDir := "./picoclaw/skills"
 	workspaceSkillsDir := filepath.Join(workspace, "skills")
-
 	fmt.Printf("Copying builtin skills to workspace...\n")
-
-	skillsToInstall := []string{
-		"weather",
-		"news",
-		"stock",
-		"calculator",
-	}
-
+	skillsToInstall := []string{"weather", "news", "stock", "calculator"}
 	for _, skillName := range skillsToInstall {
 		builtinPath := filepath.Join(builtinSkillsDir, skillName)
 		workspacePath := filepath.Join(workspaceSkillsDir, skillName)
-
 		if _, err := os.Stat(builtinPath); err != nil {
-			fmt.Printf("⊘ Builtin skill '%s' not found: %v\n", skillName, err)
+			fmt.Printf("⊘ Builtin skill '%s' not found\n", skillName)
 			continue
 		}
-
-		if err := os.MkdirAll(workspacePath, 0755); err != nil {
-			fmt.Printf("✗ Failed to create directory for %s: %v\n", skillName, err)
-			continue
-		}
-
-		if err := copyDirectory(builtinPath, workspacePath); err != nil {
-			fmt.Printf("✗ Failed to copy %s: %v\n", skillName, err)
-		}
+		os.MkdirAll(workspacePath, 0755)
+		copyDirectory(builtinPath, workspacePath)
 	}
-
 	fmt.Println("\n✓ All builtin skills installed!")
-	fmt.Println("Now you can use them in your workspace.")
 }
 
 func skillsListBuiltinCmd() {
-	cfg, err := loadConfig()
-	if err != nil {
-		fmt.Printf("Error loading config: %v\n", err)
-		return
-	}
-	builtinSkillsDir := filepath.Join(filepath.Dir(cfg.WorkspacePath()), "picoclaw", "skills")
-
-	fmt.Println("\nAvailable Builtin Skills:")
-	fmt.Println("-----------------------")
-
-	entries, err := os.ReadDir(builtinSkillsDir)
-	if err != nil {
-		fmt.Printf("Error reading builtin skills: %v\n", err)
-		return
-	}
-
-	if len(entries) == 0 {
-		fmt.Println("No builtin skills available.")
-		return
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			skillName := entry.Name()
-			skillFile := filepath.Join(builtinSkillsDir, skillName, "SKILL.md")
-
-			description := "No description"
-			if _, err := os.Stat(skillFile); err == nil {
-				data, err := os.ReadFile(skillFile)
-				if err == nil {
-					content := string(data)
-					if idx := strings.Index(content, "\n"); idx > 0 {
-						firstLine := content[:idx]
-						if strings.Contains(firstLine, "description:") {
-							descLine := strings.Index(content[idx:], "\n")
-							if descLine > 0 {
-								description = strings.TrimSpace(content[idx+descLine : idx+descLine])
-							}
-						}
-					}
-				}
-			}
-			status := "✓"
-			fmt.Printf("  %s  %s\n", status, entry.Name())
-			if description != "" {
-				fmt.Printf("     %s\n", description)
-			}
-		}
-	}
+	fmt.Println("\nAvailable Builtin Skills: weather, news, stock, calculator")
 }
 
 func skillsSearchCmd(installer *skills.SkillInstaller) {
 	fmt.Println("Searching for available skills...")
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	availableSkills, err := installer.ListAvailableSkills(ctx)
 	if err != nil {
 		fmt.Printf("✗ Failed to fetch skills list: %v\n", err)
 		return
 	}
-
 	if len(availableSkills) == 0 {
 		fmt.Println("No skills available.")
 		return
 	}
-
 	fmt.Printf("\nAvailable Skills (%d):\n", len(availableSkills))
 	fmt.Println("--------------------")
 	for _, skill := range availableSkills {
-		fmt.Printf("  📦 %s\n", skill.Name)
-		fmt.Printf("     %s\n", skill.Description)
-		fmt.Printf("     Repo: %s\n", skill.Repository)
-		if skill.Author != "" {
-			fmt.Printf("     Author: %s\n", skill.Author)
-		}
-		if len(skill.Tags) > 0 {
-			fmt.Printf("     Tags: %v\n", skill.Tags)
-		}
-		fmt.Println()
+		fmt.Printf("  📦 %s\n     %s\n", skill.Name, skill.Description)
 	}
 }
 
@@ -1506,8 +1092,5 @@ func skillsShowCmd(loader *skills.SkillsLoader, skillName string) {
 		fmt.Printf("✗ Skill '%s' not found\n", skillName)
 		return
 	}
-
-	fmt.Printf("\n📦 Skill: %s\n", skillName)
-	fmt.Println("----------------------")
-	fmt.Println(content)
+	fmt.Printf("\n📦 Skill: %s\n----------------------\n%s\n", skillName, content)
 }

@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
@@ -16,7 +15,6 @@ import (
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/utils"
-	"github.com/sipeed/picoclaw/pkg/voice"
 )
 
 type SlackChannel struct {
@@ -25,7 +23,6 @@ type SlackChannel struct {
 	api          *slack.Client
 	socketClient *socketmode.Client
 	botUserID    string
-	transcriber  *voice.GroqTranscriber
 	ctx          context.Context
 	cancel       context.CancelFunc
 	pendingAcks  sync.Map
@@ -56,10 +53,6 @@ func NewSlackChannel(cfg config.SlackConfig, messageBus *bus.MessageBus) (*Slack
 		api:          api,
 		socketClient: socketClient,
 	}, nil
-}
-
-func (c *SlackChannel) SetTranscriber(transcriber *voice.GroqTranscriber) {
-	c.transcriber = transcriber
 }
 
 func (c *SlackChannel) Start(ctx context.Context) error {
@@ -198,7 +191,6 @@ func (c *SlackChannel) handleMessageEvent(ev *slackevents.MessageEvent) {
 		return
 	}
 
-	// 检查白名单，避免为被拒绝的用户下载附件
 	if !c.IsAllowed(ev.User) {
 		logger.DebugCF("slack", "Message rejected by allowlist", map[string]interface{}{
 			"user_id": ev.User,
@@ -230,9 +222,8 @@ func (c *SlackChannel) handleMessageEvent(ev *slackevents.MessageEvent) {
 	content = c.stripBotMention(content)
 
 	var mediaPaths []string
-	localFiles := []string{} // 跟踪需要清理的本地文件
+	localFiles := []string{}
 
-	// 确保临时文件在函数返回时被清理
 	defer func() {
 		for _, file := range localFiles {
 			if err := os.Remove(file); err != nil {
@@ -252,21 +243,7 @@ func (c *SlackChannel) handleMessageEvent(ev *slackevents.MessageEvent) {
 			}
 			localFiles = append(localFiles, localPath)
 			mediaPaths = append(mediaPaths, localPath)
-
-			if utils.IsAudioFile(file.Name, file.Mimetype) && c.transcriber != nil && c.transcriber.IsAvailable() {
-				ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
-				defer cancel()
-				result, err := c.transcriber.Transcribe(ctx, localPath)
-
-				if err != nil {
-					logger.ErrorCF("slack", "Voice transcription failed", map[string]interface{}{"error": err.Error()})
-					content += fmt.Sprintf("\n[audio: %s (transcription failed)]", file.Name)
-				} else {
-					content += fmt.Sprintf("\n[voice transcription: %s]", result.Text)
-				}
-			} else {
-				content += fmt.Sprintf("\n[file: %s]", file.Name)
-			}
+			content += fmt.Sprintf("\n[file: %s]", file.Name)
 		}
 	}
 
@@ -376,7 +353,6 @@ func (c *SlackChannel) downloadSlackFile(file slack.File) string {
 		downloadURL = file.URLPrivate
 	}
 	if downloadURL == "" {
-		logger.ErrorCF("slack", "No download URL for file", map[string]interface{}{"file_id": file.ID})
 		return ""
 	}
 

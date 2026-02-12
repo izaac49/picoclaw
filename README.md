@@ -122,7 +122,6 @@ make install
 
 > [!TIP]
 > Set your API key in `~/.picoclaw/config.json`.
-> Get API keys: [OpenRouter](https://openrouter.ai/keys) (LLM) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) (LLM)
 > Web search is **optional** - get free [Brave Search API](https://brave.com/search/api) (2000 free queries/month)
 
 **1. Initialize**
@@ -138,7 +137,7 @@ picoclaw onboard
   "agents": {
     "defaults": {
       "workspace": "~/.picoclaw/workspace",
-      "model": "glm-4.7",
+      "model": "openrouter",
       "max_tokens": 8192,
       "temperature": 0.7,
       "max_tool_iterations": 20
@@ -163,7 +162,6 @@ picoclaw onboard
 
 **3. Get API Keys**
 
-- **LLM Provider**: [OpenRouter](https://openrouter.ai/keys) · [Zhipu](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) · [Anthropic](https://console.anthropic.com) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com/api-keys)
 - **Web Search** (optional): [Brave Search](https://brave.com/search/api) - Free tier available (2000 requests/month)
 
 > **Note**: See `config.example.json` for a complete configuration template.
@@ -361,12 +359,9 @@ PicoClaw stores data in your configured workspace (default: `~/.picoclaw/workspa
 ### Providers
 
 > [!NOTE]
-> Groq provides free voice transcription via Whisper. If configured, Telegram voice messages will be automatically transcribed.
 
 | Provider | Purpose | Get API Key |
 |----------|---------|-------------|
-| `gemini` | LLM (Gemini direct) | [aistudio.google.com](https://aistudio.google.com) |
-| `zhipu` | LLM (Zhipu direct) | [bigmodel.cn](bigmodel.cn) |
 | `openrouter(To be tested)` | LLM (recommended, access to all models) | [openrouter.ai](https://openrouter.ai) |
 | `anthropic(To be tested)` | LLM (Claude direct) | [console.anthropic.com](https://console.anthropic.com) |
 | `openai(To be tested)` | LLM (GPT direct) | [platform.openai.com](https://platform.openai.com) |
@@ -374,7 +369,6 @@ PicoClaw stores data in your configured workspace (default: `~/.picoclaw/workspa
 | `groq` | LLM + **Voice transcription** (Whisper) | [console.groq.com](https://console.groq.com) |
 
 <details>
-<summary><b>Zhipu</b></summary>
 
 **1. Get API key and base URL**
 
@@ -387,7 +381,7 @@ PicoClaw stores data in your configured workspace (default: `~/.picoclaw/workspa
   "agents": {
     "defaults": {
       "workspace": "~/.picoclaw/workspace",
-      "model": "glm-4.7",
+      "model": "openrouter",
       "max_tokens": 8192,
       "temperature": 0.7,
       "max_tool_iterations": 20
@@ -525,7 +519,6 @@ To enable web search:
 
 ### Getting content filtering errors
 
-Some providers (like Zhipu) have content filtering. Try rephrasing your query or use a different model.
 
 ### Telegram bot says "Conflict: terminated by other getUpdates"
 
@@ -538,6 +531,4 @@ This happens when another instance of the bot is running. Make sure only one `pi
 | Service | Free Tier | Use Case |
 |---------|-----------|-----------|
 | **OpenRouter** | 200K tokens/month | Multiple models (Claude, GPT-4, etc.) |
-| **Zhipu** | 200K tokens/month | Best for Chinese users |
 | **Brave Search** | 2000 queries/month | Web search functionality |
-| **Groq** | Free tier available | Fast inference (Llama, Mixtral) |
