@@ -363,10 +363,7 @@ PicoClaw stores data in your configured workspace (default: `~/.picoclaw/workspa
 | Provider | Purpose | Get API Key |
 |----------|---------|-------------|
 | `openrouter(To be tested)` | LLM (recommended, access to all models) | [openrouter.ai](https://openrouter.ai) |
-| `anthropic(To be tested)` | LLM (Claude direct) | [console.anthropic.com](https://console.anthropic.com) |
-| `openai(To be tested)` | LLM (GPT direct) | [platform.openai.com](https://platform.openai.com) |
 | `deepseek(To be tested)` | LLM (DeepSeek direct) | [platform.deepseek.com](https://platform.deepseek.com) |
-| `groq` | LLM + **Voice transcription** (Whisper) | [console.groq.com](https://console.groq.com) |
 
 <details>
 
@@ -388,7 +385,6 @@ PicoClaw stores data in your configured workspace (default: `~/.picoclaw/workspa
     }
   },
   "providers": {
-    "zhipu": {
       "api_key": "Your API Key",
       "api_base": "https://open.bigmodel.cn/api/paas/v4"
     },
@@ -411,14 +407,12 @@ picoclaw agent -m "Hello"
 {
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-opus-4-5"
     }
   },
   "providers": {
     "openrouter": {
       "api_key": "sk-or-v1-xxx"
     },
-    "groq": {
       "api_key": "gsk_xxx"
     }
   },
